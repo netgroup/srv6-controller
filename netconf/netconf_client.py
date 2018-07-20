@@ -2,7 +2,6 @@
 
 from netconf.client import NetconfSSHSession
 
-
 try:
     from lxml import etree
 except ImportError:
