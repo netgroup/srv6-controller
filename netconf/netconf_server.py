@@ -10,10 +10,6 @@ except ImportError:
     from xml.etree import ElementTree as etree
 
 import logging
-import sys
-import platform
-import datetime
-import os
 import time
 import json
 
@@ -56,6 +52,7 @@ class YangUtils:
   @staticmethod
   def remove_urn(text):
     return text[text.find('}') + 1:]
+
   """
   SRv6 explicit path configuration example
 
@@ -69,8 +66,6 @@ class YangUtils:
         <device>eth0</device>
     </path>
   </srv6-explicit-path>
-
-
   """
 
   @staticmethod
@@ -189,7 +184,7 @@ class SRv6NetconfMethods(server.NetconfMethods):
 def start_server():
   # Configure Netconf server listener and ip route
   global netconf_server, ip_route
-  # Setup netconf
+  # Setup Netconf
   if netconf_server is not None:
     logger.error("Netconf Server is already up and running")
   else:
@@ -218,12 +213,11 @@ def parse_options():
   parser.add_option("-d", "--debug", action="store_true", help="Activate debug logs")
   # Parse input parameters
   (options, args) = parser.parse_args()
-
+  # Setup properly the logger
   if options.debug:
     logging.basicConfig(level=logging.DEBUG)
   else:
     logging.basicConfig(level=logging.INFO)
-
   SERVER_DEBUG = logger.getEffectiveLevel() == logging.DEBUG
   logger.info("SERVER_DEBUG:" + str(SERVER_DEBUG))
 
