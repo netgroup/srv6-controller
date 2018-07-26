@@ -180,7 +180,7 @@ class SRv6NetconfMethods(server.NetconfMethods):
         logger.info("not supported yet")
         return etree.Element("not-supported")
 
-# Start netconf server
+# Start Netconf server
 def start_server():
   # Configure Netconf server listener and ip route
   global netconf_server, ip_route
