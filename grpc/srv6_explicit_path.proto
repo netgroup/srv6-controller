@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package srv6_explicit_path;
+
+// Define the rpc service interface
+service SRv6ExplicitPath {
+  // Create operation
+  rpc Create (SRv6EPRequest) returns (SRv6EPReply) {}
+  // Remove operation
+  rpc Remove (SRv6EPRequest) returns (SRv6EPReply) {}
+}
+
+// The SRv6EPRequest message containing a number of paths.
+message SRv6EPRequest {
+  repeated Path path = 1;
+}
+
+// The Path message encodes a path request
+message Path {
+  // Route of the SRv6 policy
+  string destination = 1;
+  // SRv6 Segment
+  message SRv6Segment {
+    string segment = 1;
+  }
+  // A collection of SRv6 Segments
+  repeated SRv6Segment sr_path = 2;
+  // Encap mode
+  string encapmode = 3;
+  // Device name
+  string device = 4;
+}
+
+// The SRv6EPReply message containing a simple status message
+message SRv6EPReply {
+  string message = 1;
+}
