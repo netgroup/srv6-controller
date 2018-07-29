@@ -124,6 +124,11 @@ class SRv6HTTPRequestHandler(BaseHTTPRequestHandler):
   """"HTTP 1.1 SRv6 request handler"""
   protocol_version = "HTTP/1.1"
 
+  def setup(self):
+    self.wbufsize = -1
+    self.disable_nagle_algorithm = True
+    BaseHTTPRequestHandler.setup(self)
+
   def send_headers(self, status):
     # Send proper HTTP headers
     self.send_response(status.code, status.message)
@@ -133,7 +138,6 @@ class SRv6HTTPRequestHandler(BaseHTTPRequestHandler):
     # Extract values from the query string
     path, _, query_string = self.path.partition('?')
     query = parse_qs(query_string)
-    print path, query
     # Handle post requests
     if path == SRV6_BASE_PATH:
       srv6_config = HTTPUtils.get_srv6_ep(self, query)
@@ -184,6 +188,7 @@ def start_server(secure):
     logger.error("HTTP/HTTPS Server is already up and running")
   else:
     rest_server = SRv6HTTPv6Server((REST_IP, REST_PORT), SRv6HTTPRequestHandler)
+
     # If secure let's protect the socket with ssl
     if secure:
       rest_server.socket = ssl.wrap_socket(rest_server.socket, certfile=CERTIFICATE,
