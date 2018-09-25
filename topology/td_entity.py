@@ -58,10 +58,11 @@ def discovery_topology(opts):
 		os.makedirs(TOPO_FOLDER)
 
 	while (True):
-		# stub networks disctionary: keys are networks and values are sets of routers advertising the networks
+		# stub networks dictionary: keys are networks and values are ids of routers advertising the networks
 		stub_networks = dict()
-		# transit networks disctionary: keys are networks and values are sets of routers advertising the networks
+		# transit networks dictionary: keys are networks and values are sets of routers advertising the networks
 		transit_networks = dict()
+
 		# edges set
 		edges = set()
 		# nodes set
@@ -89,11 +90,64 @@ def discovery_topology(opts):
 			tn.write("q" + "\r\n")
 			# Get results
 			route_details = tn.read_all()
+
+			password = PASSWD
+			try:
+				tn = telnetlib.Telnet(router, port) # Init telnet
+			except socket.error:
+				print "Error: cannot establish a connection to " + str(router) + " on port " + str(port) + "\n"
+				break
+
+			if password:
+				tn.read_until("Password: ")
+				tn.write(password + "\r\n")
+			# terminal length set to 0 to not have interruptions
+			tn.write("terminal length 0" + "\r\n")
+			# Get routing info from ospf6 database
+			tn.write("show ipv6 ospf6 database network detail"+ "\r\n")
+			# Close
+			tn.write("q" + "\r\n")
+			# Get results
+			network_details = tn.read_all()
+
 			tn.close() # Close telnet
 
 			with open("%s/route-detail-%s-%s.txt" %(TOPO_FOLDER , router, port), "w") as route_file:
-				route_file.write(route_details)    # Write database info to a file for post-processing
+				route_file.write(route_details)    # Write route database to a file for post-processing
 
+			with open("%s/network-detail-%s-%s.txt" %(TOPO_FOLDER , router, port), "w") as network_file:
+				network_file.write(network_details)    # Write network database to a file for post-processing
+
+			# Process network database, which contains all the transit networks
+			transit_networks = dict()
+			with open("%s/network-detail-%s-%s.txt" %(TOPO_FOLDER , router, port), "r") as network_file:
+				# Process infos and get active routers
+				for line in network_file:
+					# Get a link state id
+					m = re.search('Link State ID: (\d*.\d*.\d*.\d*)', line)
+					if(m):
+						link_state_id = m.group(1)
+						continue
+					# Get the router advertising the network
+					m = re.search('Advertising Router: (\d*.\d*.\d*.\d*)', line)
+					if(m):
+						adv_router = m.group(1)
+						continue
+					# Get routers directly connected to the network
+					m = re.search('Attached Router: (\d*.\d*.\d*.\d*)', line)
+					if(m):
+						router_id = m.group(1)
+						# Get the network id: a network is uniquely identified by a pair (link state_id, advertising router)
+						network_id = (link_state_id, adv_router)
+						if transit_networks.get(network_id) == None:
+							# Network is unknown, mark as a transit network
+							transit_networks[network_id] = []
+						# The router can reach the network
+						transit_networks[network_id].append(router_id)
+						nodes.add(adv_router)  # Add advertising router to nodes set
+						nodes.add(router_id)  # Add connected router to nodes set
+
+			# Process route database
 			with open("%s/route-detail-%s-%s.txt" %(TOPO_FOLDER , router, port), "r") as route_file:
 				# Process infos and get active routers
 				for line in route_file:
@@ -102,27 +156,22 @@ def discovery_topology(opts):
 					if(m):
 						net = m.group(1)
 						continue
-					# Get routers advertising that network
-					m = re.search('Adv: (\d*.\d*.\d*.\d*)', line)
+					# Get link-state id and the router advertising the network
+					m = re.search('Intra-Prefix Id: (\d*.\d*.\d*.\d*) Adv: (\d*.\d*.\d*.\d*)', line)
 					if(m):
-						router_id = m.group(1)
-						if stub_networks.get(net) == None:
-							# Network is unknown, mark as a stub network
-							# Each network starts as a stub network, 
-							# then it is processed and (eventually) marked as transit network
-							stub_networks[net] = set()
-						stub_networks[net].add(router_id)   # router can reach net
-						nodes.add(router_id)  # Add router to routers list
-
-		# Make separation between stub networks and transit networks
-		for net in stub_networks.keys():
-			if len(stub_networks[net]) == 2:    
-				# net advertised by two routers: mark as a transit network
-				transit_networks[net] = stub_networks[net]
-				stub_networks.pop(net)
-			elif len(stub_networks[net]) > 2:
-				print "Error: inconsistent network list"
-				exit(-1)
+						link_state_id = m.group(1)
+						adv_router = m.group(2)
+						# Get the network id
+						# A network is uniquely identified by a pair (link state_id, advertising router)
+						network_id = (link_state_id, adv_router)
+						if transit_networks.get(network_id) == None:
+							# The network is a stub network
+							stub_networks[net] = adv_router
+						else:
+							# The network is a transit network
+							# Overwrite the network id with network prefix
+							transit_networks[net] = transit_networks.pop(network_id)
+						nodes.add(adv_router)  # Add router to nodes set
 
 		# Build edges list
 		for net in transit_networks.keys():
@@ -136,7 +185,7 @@ def discovery_topology(opts):
 		for net in stub_networks.keys():
 			if len(stub_networks[net]) >= 1:
 				# Link between a router and a stub network
-				r = stub_networks[net].pop()
+				r = stub_networks[net]
 				edge=(r, net)
 				edges.add(edge)
 
