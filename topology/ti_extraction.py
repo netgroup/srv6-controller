@@ -15,7 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Topology discovery entity
+# Topology information extraction
 # 
 # @author Carmine Scarpitta <carmine.scarpitta.94@gmail.com>
 # @author Pier Luigi Ventre <pier.luigi.ventre@uniroma2.it>
@@ -35,11 +35,11 @@ import sys
 from optparse import OptionParser
 
 # Folder of the dump
-TOPO_FOLDER = "topo_discovery"
+TOPO_FOLDER = "topo_extraction"
 # In our experiment we use srv6 as default password
 PASSWD = "srv6"
 
-def discovery_topology(opts):
+def topology_information_extraction(opts):
 	
 	# Let's parse the input
 	period = float(opts.period)
@@ -58,7 +58,7 @@ def discovery_topology(opts):
 		os.makedirs(TOPO_FOLDER)
 
 	while (True):
-		# stub networks dictionary: keys are networks and values are ids of routers advertising the networks
+		# stub networks dictionary: keys are networks and values are sets  of routers advertising the networks
 		stub_networks = dict()
 		# transit networks dictionary: keys are networks and values are sets of routers advertising the networks
 		transit_networks = dict()
@@ -118,6 +118,34 @@ def discovery_topology(opts):
 			with open("%s/network-detail-%s-%s.txt" %(TOPO_FOLDER , router, port), "w") as network_file:
 				network_file.write(network_details)    # Write network database to a file for post-processing
 
+			# Process route database
+			net_id_to_net_prefix = dict()
+			with open("%s/route-detail-%s-%s.txt" %(TOPO_FOLDER , router, port), "r") as route_file:
+				# Process infos and get active routers
+				for line in route_file:
+					# Get a network prefix
+					m = re.search('Destination: (\S+)', line)
+					if(m):
+						net = m.group(1)
+						continue
+					# Get link-state id and the router advertising the network
+					m = re.search('Intra-Prefix Id: (\d*.\d*.\d*.\d*) Adv: (\d*.\d*.\d*.\d*)', line)
+					if(m):
+						link_state_id = m.group(1)
+						adv_router = m.group(2)
+						# Get the network id
+						# A network is uniquely identified by a pair (link state_id, advertising router)
+						network_id = (link_state_id, adv_router)
+
+						net_id_to_net_prefix[network_id] = net
+
+						if stub_networks.get(net) == None:
+							stub_networks[net] = set()
+
+						stub_networks[net].add(adv_router)
+
+						nodes.add(adv_router)  # Add router to nodes set
+
 			# Process network database, which contains all the transit networks
 			transit_networks = dict()
 			with open("%s/network-detail-%s-%s.txt" %(TOPO_FOLDER , router, port), "r") as network_file:
@@ -139,39 +167,22 @@ def discovery_topology(opts):
 						router_id = m.group(1)
 						# Get the network id: a network is uniquely identified by a pair (link state_id, advertising router)
 						network_id = (link_state_id, adv_router)
-						if transit_networks.get(network_id) == None:
-							# Network is unknown, mark as a transit network
-							transit_networks[network_id] = []
-						# The router can reach the network
-						transit_networks[network_id].append(router_id)
-						nodes.add(adv_router)  # Add advertising router to nodes set
-						nodes.add(router_id)  # Add connected router to nodes set
 
-			# Process route database
-			with open("%s/route-detail-%s-%s.txt" %(TOPO_FOLDER , router, port), "r") as route_file:
-				# Process infos and get active routers
-				for line in route_file:
-					# Get a network prefix
-					m = re.search('Destination: (\S+)', line)
-					if(m):
-						net = m.group(1)
-						continue
-					# Get link-state id and the router advertising the network
-					m = re.search('Intra-Prefix Id: (\d*.\d*.\d*.\d*) Adv: (\d*.\d*.\d*.\d*)', line)
-					if(m):
-						link_state_id = m.group(1)
-						adv_router = m.group(2)
-						# Get the network id
-						# A network is uniquely identified by a pair (link state_id, advertising router)
-						network_id = (link_state_id, adv_router)
-						if transit_networks.get(network_id) == None:
-							# The network is a stub network
-							stub_networks[net] = adv_router
-						else:
-							# The network is a transit network
-							# Overwrite the network id with network prefix
-							transit_networks[net] = transit_networks.pop(network_id)
-						nodes.add(adv_router)  # Add router to nodes set
+						net = net_id_to_net_prefix.get(network_id)
+						if net == None:
+							continue
+
+						stub_networks[net].add(router_id)
+
+		# Make separation between stub networks and transit networks
+		for net in stub_networks.keys():
+			if len(stub_networks[net]) == 2:    
+				# net advertised by two routers: mark as a transit network
+				transit_networks[net] = stub_networks[net]
+				stub_networks.pop(net)
+			elif len(stub_networks[net]) > 2:
+				print "Error: inconsistent network list"
+				exit(-1)
 
 		# Build edges list
 		for net in transit_networks.keys():
@@ -185,7 +196,7 @@ def discovery_topology(opts):
 		for net in stub_networks.keys():
 			if len(stub_networks[net]) >= 1:
 				# Link between a router and a stub network
-				r = stub_networks[net]
+				r = stub_networks[net].pop()
 				edge=(r, net)
 				edges.add(edge)
 
@@ -225,9 +236,9 @@ def parseOptions():
 	# ip:port of the routers
 	parser.add_option('--ip_ports', dest='ips_ports', type='string', default="127.0.0.1-2606",
 					  help='ip-port,ip-port map ip port of the routers')
-	# Topology discovery period
+	# Topology information extraction period
 	parser.add_option('--period', dest='period', type='string', default="10",
-					  help='topology discovery period')
+					  help='topology information extraction period')
 	# Parse input parameters
 	(options, args) = parser.parse_args()
 	# Done, return
@@ -237,4 +248,4 @@ if __name__ == '__main__':
 	# Let's parse input parameters
 	opts = parseOptions()
 	# Deploy topology
-	discovery_topology(opts)
+	topology_information_extraction(opts)
