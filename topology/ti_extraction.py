@@ -58,12 +58,14 @@ def topology_information_extraction(opts):
 		os.makedirs(TOPO_FOLDER)
 
 	while (True):
-		# stub networks dictionary: keys are networks and values are sets  of routers advertising the networks
+		# Stub networks dictionary: keys are networks and values are sets  of routers advertising the networks
 		stub_networks = dict()
-		# transit networks dictionary: keys are networks and values are sets of routers advertising the networks
+		# Transit networks dictionary: keys are networks and values are sets of routers advertising the networks
 		transit_networks = dict()
-		# maps network id to network ipv6 prefix
+		# Mapping network id to network ipv6 prefix
 		net_id_to_net_prefix = dict()
+		# Mapping graph edges to network prefixes
+		edge_to_net = dict()
 
 		# edges set
 		edges = set()
@@ -188,7 +190,6 @@ def topology_information_extraction(opts):
 				print "Error: inconsistent network list"
 				exit(-1)
 
-		edge_to_net = dict()
 		# Build edges list
 		for net in transit_networks.keys():
 			if len(transit_networks[net]) >= 2:
