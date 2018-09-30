@@ -62,6 +62,8 @@ def topology_information_extraction(opts):
 		stub_networks = dict()
 		# transit networks dictionary: keys are networks and values are sets of routers advertising the networks
 		transit_networks = dict()
+		# maps network id to network ipv6 prefix
+		net_id_to_net_prefix = dict()
 
 		# edges set
 		edges = set()
@@ -119,7 +121,6 @@ def topology_information_extraction(opts):
 				network_file.write(network_details)    # Write network database to a file for post-processing
 
 			# Process route database
-			net_id_to_net_prefix = dict()
 			with open("%s/route-detail-%s-%s.txt" %(TOPO_FOLDER , router, port), "r") as route_file:
 				# Process infos and get active routers
 				for line in route_file:
@@ -136,17 +137,17 @@ def topology_information_extraction(opts):
 						# Get the network id
 						# A network is uniquely identified by a pair (link state_id, advertising router)
 						network_id = (link_state_id, adv_router)
-
+						# Map network id to net ipv6 prefix
 						net_id_to_net_prefix[network_id] = net
-
 						if stub_networks.get(net) == None:
+							# Network is unknown, mark as a stub network
+							# Each network starts as a stub network, 
+							# then it is processed and (eventually) marked as transit network
 							stub_networks[net] = set()
-
-						stub_networks[net].add(adv_router)
-
+						stub_networks[net].add(adv_router)	# Adv router can reach this net
 						nodes.add(adv_router)  # Add router to nodes set
 
-			# Process network database, which contains all the transit networks
+			# Process network database
 			transit_networks = dict()
 			with open("%s/network-detail-%s-%s.txt" %(TOPO_FOLDER , router, port), "r") as network_file:
 				# Process infos and get active routers
@@ -167,11 +168,14 @@ def topology_information_extraction(opts):
 						router_id = m.group(1)
 						# Get the network id: a network is uniquely identified by a pair (link state_id, advertising router)
 						network_id = (link_state_id, adv_router)
-
+						# Get net ipv6 prefix associated to this network
 						net = net_id_to_net_prefix.get(network_id)
 						if net == None:
+							# This network does not belong to route database
+							# This means that the network is no longer reachable 
+							# (a router has been disconnected or an interface has been turned off)
 							continue
-
+						# Router can reach this net
 						stub_networks[net].add(router_id)
 
 		# Make separation between stub networks and transit networks
