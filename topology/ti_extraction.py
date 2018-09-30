@@ -188,6 +188,7 @@ def topology_information_extraction(opts):
 				print "Error: inconsistent network list"
 				exit(-1)
 
+		edge_to_net = dict()
 		# Build edges list
 		for net in transit_networks.keys():
 			if len(transit_networks[net]) >= 2:
@@ -195,6 +196,7 @@ def topology_information_extraction(opts):
 				r1 = transit_networks[net].pop()
 				r2 = transit_networks[net].pop()
 				edge=(r1, r2)
+				edge_to_net[edge] = net
 				edges.add(edge)
 
 		for net in stub_networks.keys():
@@ -206,7 +208,8 @@ def topology_information_extraction(opts):
 
 
 		# Print results
-		print "Stub Networks:", stub_networks
+		print "Stub Networks:", stub_networks.keys()
+		print "Transit Networks:", transit_networks.keys()
 		print "Nodes:", nodes
 		print "Edges:", edges
 		print "***************************************"
@@ -217,8 +220,12 @@ def topology_information_extraction(opts):
 		for r in stub_networks.keys():
 			G.add_node(r, fillcolor="cyan", style="filled", shape="box")
 		for e in edges:
-			if (e[0] in nodes or e[0] in stub_networks.keys()) and (e[1] in nodes or e[1] in stub_networks.keys()):
+			if (e[0] in nodes and e[1] in stub_networks.keys()) or (e[1] in nodes and e[0] in stub_networks.keys()):
+				# This is a stub network, no label on the edge
 				G.add_edge(*e)
+			elif (e[0] in nodes and e[1] in nodes):
+				# This is a transit network, put a label on the edge
+				G.add_edge(*e, label=edge_to_net[e])
 
 
 		# Export NetworkX object into a json file
