@@ -19,7 +19,7 @@ Run an example experiment
 
 You can extract topology from ospfd
 
-    > ./ti_extraction 2000::c 2606 1
+    > ./ti_extraction.py 2000::c 2606 1
 
 After a while the enitity will populate the ***topo_extraction*** folder with the topology files
 
@@ -27,3 +27,41 @@ After a while the enitity will populate the ***topo_extraction*** folder with th
 	> topo-graph.dot
 	> topo-graph.json
 	> topo-graph.svg
+
+### SRv6 Southbound API ###
+
+The project provides four different implementations of the SRv6 Southbound API: i) gRPC; ii) NETCONF; iii) REST; iv) SSH.
+Each folder contains the server and the client implementation.
+
+As of the server, it requires the init of the variable interfaces which defines the interface under the control of the SRv6Manager
+
+    interfaces = ['eth0']
+
+For the NETCONF and SSH implementation it is required to properly initialized USER and PASSWORD
+
+    SSH_USER = 'srv6'
+    SSH_PASSWORD = 'srv6'
+
+Run the server
+
+    > cd /home/user/workspace/srv6-controller/*
+
+    Usage: *_server.py [options]
+
+    Options:
+        -h, --help    show this help message and exit
+        -d, --debug   Activate debug logs
+        -s, --secure  Activate secure mode
+
+Instead for the client, it is necessary to define the mode and the IP/PORT of the server
+
+    SECURE = False
+    srv6_stub,channel = get_grpc_session(IP, PORT, SECURE)
+
+NETCONF and SSH implementation does support only secure mode
+
+Run the client
+    
+    > cd /home/user/workspace/srv6-controller/*
+
+    Usage: *_client.py
